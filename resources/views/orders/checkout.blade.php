@@ -19,6 +19,11 @@
                 </div>
 
                 <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" name="customer_phone" class="form-input" required>
+                </div>
+
+                <div class="form-group">
                     <label>Shipping Method</label>
                     <select name="shipping_method" class="form-select" required>
                         <option value="pickup">Store Pickup</option>
@@ -32,26 +37,9 @@
                     <input type="text" name="address" class="form-input" required>
                 </div>
 
-                <div class="grid-2" style="gap: 1rem;">
-                    <div class="form-group">
-                        <label>City</label>
-                        <input type="text" name="city" class="form-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label>State</label>
-                        <input type="text" name="state" class="form-input" required>
-                    </div>
-                </div>
-
-                <div class="grid-2" style="gap: 1rem;">
-                    <div class="form-group">
-                        <label>Country (ISO 2)</label>
-                        <input type="text" name="country" class="form-input" value="EG" maxlength="2" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Zip Code</label>
-                        <input type="text" name="zip" class="form-input" required>
-                    </div>
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" name="city" class="form-input" required>
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;" id="pay-btn">
@@ -83,6 +71,7 @@
     <div id="payment-iframe-container" class="glass-card mt-4" style="display: none;">
         <h2 class="mb-4">Secure Payment</h2>
         <iframe id="payment-iframe" src=""></iframe>
+        <div id="fallback-area" style="text-align: center;"></div>
     </div>
 
     <script src="{{ asset('js/payment.js') }}"></script>

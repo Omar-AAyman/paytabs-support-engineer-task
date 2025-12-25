@@ -5,5 +5,5 @@ return [
     'server_key' => env('PAYTABS_SERVER_KEY', 'SWJ992BZTN-JHGTJBWDLM-BZJKMR2ZHT'),
     'base_url' => env('PAYTABS_BASE_URL', 'https://secure-egypt.paytabs.com/payment/request'),
     'currency' => env('PAYTABS_REGION', 'EGP'),
-    'callback_base_url' => env('PAYTABS_CALLBACK_URL'),
+    'callback_base_url' => env('PAYTABS_CALLBACK_URL', 'http://localhost:8000'),
 ];

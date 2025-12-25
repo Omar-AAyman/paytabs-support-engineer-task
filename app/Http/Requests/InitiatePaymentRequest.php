@@ -14,13 +14,11 @@ class InitiatePaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_name' => 'required|string|max:255',
-            'customer_email' => 'required|email|max:255',
-            'address' => 'required|string|max:255',
-            'city' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
-            'country' => 'required|string|size:2',
-            'zip' => 'required|string|max:20',
+            'customer_name' => 'required|string|min:2|max:128',
+            'customer_email' => 'required|email|max:128',
+            'customer_phone' => 'required|string|min:2|max:32',
+            'address' => 'required|string|min:2|max:128', 
+            'city' => 'required|string|min:2|max:128',
             'shipping_method' => 'required|in:pickup,shipping',
         ];
     }

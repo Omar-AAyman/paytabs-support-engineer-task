@@ -14,38 +14,60 @@ use Illuminate\Support\Facades\Log;
 
 class PayTabsController extends Controller
 {
-    private $payTabsService;
+    /** @var PayTabsService */
+    protected $payTabs;
 
-    public function __construct(PayTabsService $payTabsService)
+    /**
+     * @param PayTabsService $payTabs
+     */
+    public function __construct(PayTabsService $payTabs)
     {
-        $this->payTabsService = $payTabsService;
+        $this->payTabs = $payTabs;
     }
 
+    /**
+     * Initiate a payment request to PayTabs.
+     *
+     * @param InitiatePaymentRequest $request Custom request validation.
+     * @param Order $order The order model instance.
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function createPayment(InitiatePaymentRequest $request, Order $order)
     {
+        // Defaults for simplified checkout
+        $country = 'EG';
+        $zip = '00000';
+        $state = $request->city; // Fallback state to city
+
         $order->update([
             'customer_name' => $request->customer_name,
             'customer_email' => $request->customer_email,
-            'address' => "{$request->address}, {$request->city}, {$request->state}, {$request->zip}, {$request->country}",
+            'address' => "{$request->address}, {$request->city}, {$state}, {$zip}, {$country}",
             'shipping_method' => ShippingMethod::from($request->shipping_method),
         ]);
 
-        $customerDetails = [
+        $customer = [
             'name' => $order->customer_name,
             'email' => $order->customer_email,
+            'phone' => $request->customer_phone,
             'street' => $request->address,
             'city' => $request->city,
-            'state' => $request->state,
-            'country' => $request->country,
-            'zip' => $request->zip,
+            'state' => $state,
+            'country' => $country,
+            'zip' => $zip,
             'ip' => $request->ip(),
         ];
 
-        $result = $this->payTabsService->sendPaymentRequest($order, $customerDetails);
+        $result = $this->payTabs->sendPaymentRequest($order, $customer);
+        $tranRef = $result['response']['tran_ref'] ?? null;
+
+        if ($tranRef) {
+            session(['paytabs_tran_ref' => $tranRef]);
+        }
 
         $order->paymentLogs()->create([
             'type' => PaymentType::Auth,
-            'transaction_id' => $result['response']['tran_ref'] ?? null,
+            'transaction_id' => $tranRef,
             'request_payload' => $result['payload'],
             'response_payload' => $result['response'],
         ]);
@@ -54,96 +76,97 @@ class PayTabsController extends Controller
             return response()->json(['redirect_url' => $result['response']['redirect_url']]);
         }
 
-        return response()->json(['error' => 'Failed to initiate payment', 'details' => $result['response']], 400);
+        return response()->json(['error' => 'Payment initiation failed'], 400);
     }
 
+    /**
+     * Handle the client-side return from PayTabs.
+     * Uses transaction reference to query actual status from API.
+     *
+     * @param Request $request
+     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+     */
     public function return(Request $request)
     {
-        $tranRef = $request->tranRef;
-        if (! $tranRef) {
+        $tranRef = $request->input('tranRef') ?? $request->input('tran_ref') ?? session('paytabs_tran_ref');
+
+        if (!$tranRef) {
             return redirect()->route('home')->with('error', 'Invalid payment return.');
         }
 
         $log = PaymentLog::where('transaction_id', $tranRef)->first();
-
-        if (! $log) {
-            return redirect()->route('home');
+        if (!$log || !$log->order) {
+            return redirect()->route('home')->with('error', 'Order not found.');
         }
 
-        $order = Order::find($log->order_id);
+        $order = $log->order;
 
-        if ($order->status === OrderStatus::Completed) {
-            return view('payment.success', compact('order'));
-        }
+        // Query API for authoritative status
+        $verification = $this->payTabs->queryTransaction($tranRef);
+        $response = $verification['response'];
+        $status = $response['payment_result']['response_status'] ?? '';
+        $isSuccess = $status === 'A';
 
-        return view('payment.failure', compact('order'));
+        $this->updateOrder($order, $isSuccess, $response, $tranRef);
+
+        return $isSuccess
+            ? view('payment.success', compact('order'))
+            : view('payment.failure', compact('order'));
     }
 
+    /**
+     * Handle Server-to-Server Callback (Webhook/IPN).
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function callback(Request $request)
     {
-        $data = $request->input();
-        Log::info('PayTabs Callback Received', $data);
+        $data = $request->all();
 
-        $tranRef = $data['tran_ref'] ?? null;
-        $orderId = $data['cart_id'] ?? null;
-
-        if (! $orderId || ! $tranRef) {
-            Log::error('PayTabs Callback Missing Data', ['order_id' => $orderId, 'tran_ref' => $tranRef]);
-
-            return response()->json(['message' => 'Invalid data'], 400);
+        if (!$this->payTabs->isValidRedirect($data)) {
+            Log::warning('PayTabs Callback: Invalid Signature', ['data' => $data]);
+            return response()->json(['message' => 'Invalid Signature'], 400);
         }
 
-        $order = Order::find($orderId);
-        if (! $order) {
-            Log::error('PayTabs Callback Order Not Found', ['order_id' => $orderId]);
+        $tranRef = $request->input('tran_ref') ?? $request->input('tranRef');
+        $cartId = $request->input('cart_id') ?? $request->input('cartId');
 
+        $order = Order::find($cartId);
+        if (!$order) {
             return response()->json(['message' => 'Order not found'], 404);
         }
 
-        $success = isset($data['payment_result']['response_status']) && $data['payment_result']['response_status'] === 'A';
-        
-        if ($success) {
-            $order->update(['status' => OrderStatus::Completed]);
-            Log::info("Order #{$order->id} status updated to Completed (TranRef: {$tranRef})");
-        } else {
-            $order->update(['status' => OrderStatus::Failed]);
-            Log::warning("Order #{$order->id} status updated to Failed (TranRef: {$tranRef})");
-        }
+        $status = $data['payment_result']['response_status'] ?? '';
+        $isSuccess = $status === 'A';
 
-        $order->paymentLogs()->create([
-            'type' => PaymentType::Auth,
-            'transaction_id' => $tranRef,
-            'request_payload' => [],
-            'response_payload' => $data,
-        ]);
+        $this->updateOrder($order, $isSuccess, $data, $tranRef);
 
         return response()->json(['message' => 'OK']);
     }
 
+    /**
+     * Process a refund for an order.
+     *
+     * @param Request $request
+     * @param Order $order
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function refund(Request $request, Order $order)
     {
-        Log::info("Attempting refund for Order #{$order->id}");
-
         $authLog = $order->paymentLogs()
             ->where('type', PaymentType::Auth)
             ->whereNotNull('transaction_id')
             ->latest()
             ->first();
 
-        if (! $authLog) {
-            Log::warning("Refund failed: No valid transaction log found for Order #{$order->id}");
-
-            return back()->with('error', 'No successful transaction found to refund.');
+        if (!$authLog) {
+            return back()->with('error', 'No transaction found to refund.');
         }
 
-        Log::info("Found transaction for refund: {$authLog->transaction_id}");
-
-        $result = $this->payTabsService->sendRefundRequest($order, $authLog->transaction_id);
-
-        Log::info("Refund API Response for Order #{$order->id}", $result['response']);
-
-        $success = isset($result['response']['payment_result']['response_status'])
-            && $result['response']['payment_result']['response_status'] === 'A';
+        $result = $this->payTabs->sendRefundRequest($order, $authLog->transaction_id);
+        $status = $result['response']['payment_result']['response_status'] ?? '';
+        $success = $status === 'A';
 
         $order->paymentLogs()->create([
             'type' => PaymentType::Refund,
@@ -154,18 +177,36 @@ class PayTabsController extends Controller
 
         if ($success) {
             $order->update(['status' => OrderStatus::Refunded]);
-
             foreach ($order->items as $item) {
                 $item->product->increment('stock', $item->quantity);
             }
-
-            Log::info("Order #{$order->id} marked as Refunded and Stock Restored");
-        } else {
-            Log::error("Refund failed for Order #{$order->id}. Message: ".($result['response']['payment_result']['response_message'] ?? 'Unknown'));
         }
 
-        $msg = $result['response']['payment_result']['response_message'] ?? 'Refund processed';
+        return back()->with($success ? 'success' : 'error', $result['response']['payment_result']['response_message'] ?? 'Refund processed');
+    }
 
-        return back()->with($success ? 'success' : 'error', $msg);
+    /**
+     * Update order status based on payment result.
+     *
+     * @param Order $order
+     * @param bool $success
+     * @param array $data Response payload
+     * @param string|null $tranRef
+     * @return void
+     */
+    protected function updateOrder(Order $order, bool $success, array $data, $tranRef)
+    {
+        if ($success && $order->status !== OrderStatus::Completed) {
+            $order->update(['status' => OrderStatus::Completed]);
+        } elseif (!$success && $order->status !== OrderStatus::Failed && $order->status !== OrderStatus::Completed) {
+            $order->update(['status' => OrderStatus::Failed]);
+        }
+
+        $order->paymentLogs()->create([
+            'type' => PaymentType::Auth,
+            'transaction_id' => $tranRef,
+            'request_payload' => [],
+            'response_payload' => $data,
+        ]);
     }
 }
