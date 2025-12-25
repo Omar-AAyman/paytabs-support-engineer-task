@@ -33,7 +33,6 @@ class OrderController extends Controller
             if ($qty > 0) {
                 $product = Product::find($item['id'] ?? null);
                 
-                // Decrement Stock
                 $product->decrement('stock', $item['quantity']);
 
                 $total += $product->price * $item['quantity'];

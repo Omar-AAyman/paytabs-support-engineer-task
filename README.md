@@ -10,7 +10,7 @@ A lightweight Laravel application demonstrating a seamless **PayTabs Hosted Paym
 - **Refund Management**: Initiate refunds directly from the dashboard with stock restoration.
 - **Robust Logging**: Detailed logs of all API Requests (Auth/Refund) and Callback Payloads.
 - **Stock Control**: Prevents overselling with real-time validation and lock mechanisms.
-- **Zero-Redundancy**: Customer details are pre-filled in the payment page (No re-entry required).
+- **Zero-Redundancy**: Customer details are pre-filled, and regional fields (Country/Zip) are auto-handled for a seamless experience.
 
 ## 🛠️ Technology Stack
 
@@ -55,7 +55,7 @@ php artisan migrate --seed
 
 ### User Flow
 1. **New Order**: Go to `/orders/create` and select products (e.g., Laptop).
-2. **Checkout**: Enter billing details (or use the pre-filled defaults).
+2. **Checkout**: Enter simplified billing details (Address & City only).
 3. **Payment**: The PayTabs payment page loads inside an iFrame.
 4. **Success**: Upon payment, you are redirected to the Success Page.
 5. **Logs**: Go to Order Details to see the raw API `Auth` payload and response.

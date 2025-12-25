@@ -95,7 +95,6 @@ class PayTabsService
             'tran_ref' => $transactionId,
         ];
 
-        // Send to query endpoint
         $response = Http::withHeaders([
             'Authorization' => $this->serverKey,
             'Content-Type' => 'application/json',
@@ -125,13 +124,10 @@ class PayTabsService
         $requestSignature = $postValues["signature"];
         unset($postValues["signature"]);
         
-        // Remove empty parameters (Strictly following docs sample: array_filter default behavior)
         $fields = array_filter($postValues);
 
-        // Sort params
         ksort($fields);
 
-        // Generate URL-encoded query string
         $query = http_build_query($fields);
 
         $signature = hash_hmac('sha256', $query, $serverKey);
