@@ -66,6 +66,7 @@ class PayTabsService
 
     private function sendRequest(array $payload)
     {
+        /** @var \Illuminate\Http\Client\Response $response */
         $response = Http::withHeaders([
             'Authorization' => $this->serverKey,
             'Content-Type' => 'application/json',
