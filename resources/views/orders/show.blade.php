@@ -32,32 +32,34 @@
         </div>
 
         <h2 class="mt-4">Order Items</h2>
-        <table class="orders-table">
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th>Price</th>
-                    <th>Qty</th>
-                    <th>Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($order->items as $item)
+        <div class="table-responsive">
+            <table class="orders-table">
+                <thead>
                     <tr>
-                        <td>{{ $item->product->name }}</td>
-                        <td>{{ number_format($item->price, 2) }}</td>
-                        <td>{{ $item->quantity }}</td>
-                        <td>{{ number_format($item->price * $item->quantity, 2) }}</td>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Qty</th>
+                        <th>Subtotal</th>
                     </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="3" class="text-right"><strong>Total:</strong></td>
-                    <td><strong>{{ number_format($order->cart_total, 2) }} EGP</strong></td>
-                </tr>
-            </tfoot>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach ($order->items as $item)
+                        <tr>
+                            <td>{{ $item->product->name }}</td>
+                            <td>{{ number_format($item->price, 2) }}</td>
+                            <td>{{ $item->quantity }}</td>
+                            <td>{{ number_format($item->price * $item->quantity, 2) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-right"><strong>Total:</strong></td>
+                        <td><strong>{{ number_format($order->cart_total, 2) }} EGP</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
 
         <h2 class="mt-4">Payment & System Logs</h2>
         @foreach ($order->paymentLogs->sortByDesc('created_at') as $log)
