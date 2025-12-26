@@ -14,7 +14,7 @@
                     <button type="submit" class="btn btn-primary" style="background: var(--secondary);">Refund Order</button>
                 </form>
             @elseif ($order->status === \App\Enums\OrderStatus::Pending || $order->status === \App\Enums\OrderStatus::Failed)
-                <a href="{{ route('orders.checkout', $order) }}" class="btn btn-primary">Retry Payment</a>
+                <a href="{{ route('orders.checkout', $order) }}" class="btn btn-sm btn-primary">Retry Payment</a>
             @endif
         </div>
 
