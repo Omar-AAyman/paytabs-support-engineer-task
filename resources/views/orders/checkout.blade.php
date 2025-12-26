@@ -10,12 +10,14 @@
                 @csrf
                 <div class="form-group">
                     <label>Full Name</label>
-                    <input type="text" name="customer_name" class="form-input" required>
+                    <input type="text" name="customer_name" class="form-input" required
+                        value="{{ $order->customer_name == 'Guest' ? '' : $order->customer_name }}">
                 </div>
 
                 <div class="form-group">
                     <label>Email Address</label>
-                    <input type="email" name="customer_email" class="form-input" required>
+                    <input type="email" name="customer_email" class="form-input" required
+                        value="{{ $order->customer_email == 'guest@example.com' ? '' : $order->customer_email }}">
                 </div>
 
                 <div class="form-group">
